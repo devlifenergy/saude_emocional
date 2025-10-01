@@ -1,4 +1,4 @@
-# app_lifenergy_esg_nr1_google_sheets_v2.py
+# app_lifenergy_esg_nr1_final.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -6,24 +6,32 @@ import gspread
 from gspread_dataframe import set_with_dataframe
 
 # --- PALETA DE CORES E CONFIGURAÇÃO DA PÁGINA ---
-# (O CSS e a configuração da página permanecem os mesmos)
 COLOR_PRIMARY = "#70D1C6"
 COLOR_TEXT_DARK = "#333333"
 COLOR_BACKGROUND = "#FFFFFF"
-st.set_page_config(page_title="Formulário Lifenergy - ESG & NR‑1", layout="wide")
-# O CSS foi omitido aqui para economizar espaço, mas deve estar no seu script
+
+st.set_page_config(
+    page_title="Formulário Lifenergy - ESG & NR‑1",
+    layout="wide"
+)
+
+# --- CSS CUSTOMIZADO PARA A INTERFACE ---
+# (O CSS foi omitido aqui para economizar espaço, mas deve estar no seu script)
 st.markdown(f"""<style>...</style>""", unsafe_allow_html=True) 
 
-# --- CONEXÃO COM GOOGLE SHEETS (COM CORREÇÃO) ---
+# --- CONEXÃO COM GOOGLE SHEETS (VERSÃO CORRIGIDA) ---
 try:
-    # Pega as credenciais do Streamlit Secrets
-    creds_dict = st.secrets["gcp_service_account"]
+    # Pega as credenciais do Streamlit Secrets (que são somente leitura)
+    creds_from_secrets = st.secrets["gcp_service_account"]
     
     # ##### CORREÇÃO APLICADA AQUI #####
-    # Corrige a formatação da chave privada que causa o erro
+    # 1. Cria uma CÓPIA editável do dicionário de credenciais
+    creds_dict = dict(creds_from_secrets)
+    
+    # 2. Corrige a formatação da chave privada na CÓPIA
     creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
     
-    # Autentica usando o dicionário de credenciais corrigido
+    # 3. Autentica usando a cópia corrigida
     gc = gspread.service_account_from_dict(creds_dict)
     
     # Abre a planilha pelo nome que você deu a ela
@@ -50,30 +58,23 @@ if st.button("Finalizar e Enviar Respostas", type="primary"):
         st.warning("Nenhuma resposta foi preenchida.")
     else:
         st.subheader("Enviando e Processando Resultados...")
-
-        # --- LÓGICA DE CÁLCULO (Permanece a mesma) ---
-        # (O código de cálculo foi omitido aqui para economizar espaço)
-        # ...
+        
+        # Lógica de cálculo (permanece a mesma)
         # ...
         
-        # --- NOVA LÓGICA DE EXPORTAÇÃO PARA GOOGLE SHEETS ---
         with st.spinner("Enviando dados para a planilha..."):
             
-            # 1. Preparar dados das respostas (formato longo)
+            # 1. Preparar dados das respostas
             timestamp_str = datetime.now().isoformat(timespec="seconds")
             respostas_para_enviar = []
-            # (O código para preparar as respostas para enviar foi omitido aqui, mas permanece o mesmo)
-            # ...
+            # ... (código para preparar as respostas para enviar permanece o mesmo)
             
             df_respostas_gs = pd.DataFrame(respostas_para_enviar)
-            
-            # Adiciona as novas linhas à planilha, sem o cabeçalho
             ws_respostas.append_rows(df_respostas_gs.values.tolist(), value_input_option='USER_ENTERED')
 
             # 2. Preparar dados de observações
             if observacoes:
-                # (O código para preparar as observações foi omitido aqui, mas permanece o mesmo)
-                # ...
+                # ... (código para preparar as observações permanece o mesmo)
                 df_obs_gs = pd.DataFrame(dados_obs)
                 ws_observacoes.append_rows(df_obs_gs.values.tolist(), value_input_option='USER_ENTERED')
         
