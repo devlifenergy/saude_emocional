@@ -1,4 +1,4 @@
-# app_lifenergy_esg_nr1_google_sheets.py
+# app_lifenergy_esg_nr1_google_sheets_v2.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -6,17 +6,26 @@ import gspread
 from gspread_dataframe import set_with_dataframe
 
 # --- PALETA DE CORES E CONFIGURAÇÃO DA PÁGINA ---
-# (O CSS e a configuração da página permanecem os mesmos da versão anterior)
+# (O CSS e a configuração da página permanecem os mesmos)
 COLOR_PRIMARY = "#70D1C6"
 COLOR_TEXT_DARK = "#333333"
 COLOR_BACKGROUND = "#FFFFFF"
 st.set_page_config(page_title="Formulário Lifenergy - ESG & NR‑1", layout="wide")
-st.markdown(f"""<style>...</style>""", unsafe_allow_html=True) # O CSS foi omitido aqui para economizar espaço, mas deve estar no seu script
+# O CSS foi omitido aqui para economizar espaço, mas deve estar no seu script
+st.markdown(f"""<style>...</style>""", unsafe_allow_html=True) 
 
-# --- CONEXÃO COM GOOGLE SHEETS ---
-# Autentica usando os segredos do Streamlit
+# --- CONEXÃO COM GOOGLE SHEETS (COM CORREÇÃO) ---
 try:
-    gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+    # Pega as credenciais do Streamlit Secrets
+    creds_dict = st.secrets["gcp_service_account"]
+    
+    # ##### CORREÇÃO APLICADA AQUI #####
+    # Corrige a formatação da chave privada que causa o erro
+    creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+    
+    # Autentica usando o dicionário de credenciais corrigido
+    gc = gspread.service_account_from_dict(creds_dict)
+    
     # Abre a planilha pelo nome que você deu a ela
     spreadsheet = gc.open("Respostas App Lifenergy")
     # Seleciona as abas
@@ -24,13 +33,15 @@ try:
     ws_observacoes = spreadsheet.worksheet("Observacoes")
 except Exception as e:
     st.error(f"Erro ao conectar com o Google Sheets: {e}")
+    st.info("Verifique se as credenciais no Secrets estão corretas e se a planilha foi compartilhada com o 'client_email'.")
     st.stop()
 
 
 # --- CABEÇALHO, IDENTIFICAÇÃO, INSTRUÇÕES E LÓGICA DO QUESTIONÁRIO ---
 # (Todo o código da interface do usuário até o botão de finalizar permanece o mesmo)
+# O código foi omitido aqui para economizar espaço, mas deve estar no seu script
 # ...
-# ... (O código foi omitido aqui para economizar espaço)
+# ...
 # ...
 
 # --- BOTÃO DE FINALIZAR E LÓGICA DE RESULTADOS/EXPORTAÇÃO ---
@@ -41,35 +52,18 @@ if st.button("Finalizar e Enviar Respostas", type="primary"):
         st.subheader("Enviando e Processando Resultados...")
 
         # --- LÓGICA DE CÁLCULO (Permanece a mesma) ---
-        respostas_list = []
-        for index, row in df_itens.iterrows():
-            item_id = row['Código']
-            resposta_usuario = st.session_state.respostas.get(item_id)
-            respostas_list.append({
-                "Código": item_id, "Dimensão": row["Dimensão"], "Subcategoria": row["Subcategoria"],
-                "Item": row["Item"], "Resposta": resposta_usuario, "Reverso": row["Reverso"]
-            })
-        dfr = pd.DataFrame(respostas_list)
-        # ... (cálculo de média_geral, score_global, etc. permanece o mesmo)
-        # ... (O código foi omitido aqui para economizar espaço)
-
+        # (O código de cálculo foi omitido aqui para economizar espaço)
+        # ...
+        # ...
+        
         # --- NOVA LÓGICA DE EXPORTAÇÃO PARA GOOGLE SHEETS ---
         with st.spinner("Enviando dados para a planilha..."):
             
             # 1. Preparar dados das respostas (formato longo)
             timestamp_str = datetime.now().isoformat(timespec="seconds")
             respostas_para_enviar = []
-            for _, row in dfr.iterrows():
-                respostas_para_enviar.append({
-                    "Timestamp": timestamp_str,
-                    "Respondente": respondente,
-                    "Data": data,
-                    "Organização Coletora": organizacao_coletora,
-                    "Dimensão": row["Dimensão"],
-                    "Subcategoria": row["Subcategoria"],
-                    "Item": row["Item"],
-                    "Resposta": row["Resposta"] if pd.notna(row["Resposta"]) else "N/A"
-                })
+            # (O código para preparar as respostas para enviar foi omitido aqui, mas permanece o mesmo)
+            # ...
             
             df_respostas_gs = pd.DataFrame(respostas_para_enviar)
             
@@ -78,11 +72,8 @@ if st.button("Finalizar e Enviar Respostas", type="primary"):
 
             # 2. Preparar dados de observações
             if observacoes:
-                dados_obs = [{
-                    "Timestamp": timestamp_str,
-                    "Respondente": respondente,
-                    "Observações": observacoes
-                }]
+                # (O código para preparar as observações foi omitido aqui, mas permanece o mesmo)
+                # ...
                 df_obs_gs = pd.DataFrame(dados_obs)
                 ws_observacoes.append_rows(df_obs_gs.values.tolist(), value_input_option='USER_ENTERED')
         
