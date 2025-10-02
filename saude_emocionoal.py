@@ -81,26 +81,25 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
-def connect_to_gsheet():
-    """Conecta ao Google Sheets e retorna os objetos da planilha."""
-    try:
-        creds_dict = dict(st.secrets["google_credentials"])
-        creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
-        
-        gc = gspread.service_account_from_dict(creds_dict)
-        spreadsheet = gc.open("Respostas App Lifenergy")
-        
-        return spreadsheet
-    except Exception as e:
-        st.error(f"Erro ao conectar com o Google Sheets: {e}")
-        st.info("Verifique as credenciais, permissões da API e compartilhamento da planilha.")
-        return None
+try:
+    # Cria uma cópia editável das credenciais
+    creds_dict = dict(st.secrets["google_credentials"])
+    # Corrige a formatação da chave privada
+    creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+    
+    # Autentica no Google
+    gc = gspread.service_account_from_dict(creds_dict)
+    
+    # Abre a planilha pelo nome exato
+    spreadsheet = gc.open("Teste Conexão Streamlit")
+    
+    # Seleciona a primeira aba
+    worksheet = spreadsheet.sheet1
+    
+    st.success("Conexão com Google Sheets bem-sucedida!")
 
-spreadsheet = connect_to_gsheet()
-
-# Se a conexão falhar, interrompe a execução do app
-if spreadsheet is None:
+except Exception as e:
+    st.error(f"Erro ao conectar com o Google Sheets: {e}")
     st.stop()
 
 # Seleciona as abas fora da função de cache
