@@ -83,7 +83,7 @@ st.markdown(f"""
 
 @st.cache_resource
 def connect_to_gsheet():
-    """Conecta ao Google Sheets e retorna os objetos da planilha e das abas."""
+    """Conecta ao Google Sheets e retorna os objetos da planilha."""
     try:
         creds_dict = dict(st.secrets["google_credentials"])
         creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
@@ -91,19 +91,22 @@ def connect_to_gsheet():
         gc = gspread.service_account_from_dict(creds_dict)
         spreadsheet = gc.open("Respostas App Lifenergy")
         
-        # Retorna a planilha e as duas abas
-        return spreadsheet, spreadsheet.worksheet("Respostas"), spreadsheet.worksheet("Observacoes")
+        return spreadsheet
     except Exception as e:
         st.error(f"Erro ao conectar com o Google Sheets: {e}")
         st.info("Verifique as credenciais, permissões da API e compartilhamento da planilha.")
-        return None, None, None
+        return None
 
-# Chama a função e desempacota os resultados
-spreadsheet, ws_respostas, ws_observacoes = connect_to_gsheet()
+spreadsheet = connect_to_gsheet()
 
 # Se a conexão falhar, interrompe a execução do app
 if spreadsheet is None:
     st.stop()
+
+# Seleciona as abas fora da função de cache
+ws_respostas = spreadsheet.worksheet("Respostas")
+ws_observacoes = spreadsheet.worksheet("Observacoes")
+
 
 # --- CABEÇALHO DA APLICAÇÃO ---
 col1, col2 = st.columns([1, 4])
