@@ -4,6 +4,9 @@ import pandas as pd
 from datetime import datetime
 import gspread
 from gspread_dataframe import set_with_dataframe
+import google.auth
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # --- PALETA DE CORES E CONFIGURAÇÃO DA PÁGINA ---
 COLOR_PRIMARY = "#70D1C6"
