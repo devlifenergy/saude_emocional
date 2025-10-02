@@ -83,7 +83,7 @@ st.markdown(f"""
 
 # --- CONEXÃO COM GOOGLE SHEETS (MÉTODO COMPROVADO) ---
 try:
-    # Cria uma cópia editável das credenciais a partir do st.secrets
+    # Cria uma cópia editável das credenciais
     creds_dict = dict(st.secrets["google_credentials"])
     # Corrige a formatação da chave privada
     creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
@@ -92,15 +92,15 @@ try:
     gc = gspread.service_account_from_dict(creds_dict)
     
     # Abre a planilha pelo nome exato
-    spreadsheet = gc.open("Respostas App Lifenergy")
+    spreadsheet = gc.open("Teste Conexão Streamlit")
     
-    # Seleciona as abas
-    ws_respostas = spreadsheet.worksheet("Respostas")
-    ws_observacoes = spreadsheet.worksheet("Observacoes")
+    # Seleciona a primeira aba
+    worksheet = spreadsheet.sheet1
+    
+    st.success("Conexão com Google Sheets bem-sucedida!")
 
 except Exception as e:
     st.error(f"Erro ao conectar com o Google Sheets: {e}")
-    st.info("Verifique se as credenciais no Secrets estão corretas e se a planilha foi compartilhada com o 'client_email'.")
     st.stop()
 
 
