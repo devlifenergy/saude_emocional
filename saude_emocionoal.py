@@ -81,28 +81,29 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- CONEXÃO COM GOOGLE SHEETS (MÉTODO COMPROVADO) ---
-try:
-    # Cria uma cópia editável das credenciais
-    creds_dict = dict(st.secrets["google_credentials"])
-    # Corrige a formatação da chave privada
-    creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
-    
-    # Autentica no Google
-    gc = gspread.service_account_from_dict(creds_dict)
-    
-    # Abre a planilha pelo nome exato
-    spreadsheet = gc.open("Teste Conexão Streamlit")
-    
-    # Seleciona a primeira aba
-    worksheet = spreadsheet.sheet1
-    
-    st.success("Conexão com Google Sheets bem-sucedida!")
+@st.cache_resource
+def connect_to_gsheet():
+    """Conecta ao Google Sheets e retorna os objetos da planilha e das abas."""
+    try:
+        creds_dict = dict(st.secrets["google_credentials"])
+        creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+        
+        gc = gspread.service_account_from_dict(creds_dict)
+        spreadsheet = gc.open("Respostas App Lifenergy")
+        
+        # Retorna a planilha e as duas abas
+        return spreadsheet, spreadsheet.worksheet("Respostas"), spreadsheet.worksheet("Observacoes")
+    except Exception as e:
+        st.error(f"Erro ao conectar com o Google Sheets: {e}")
+        st.info("Verifique as credenciais, permissões da API e compartilhamento da planilha.")
+        return None, None, None
 
-except Exception as e:
-    st.error(f"Erro ao conectar com o Google Sheets: {e}")
+# Chama a função e desempacota os resultados
+spreadsheet, ws_respostas, ws_observacoes = connect_to_gsheet()
+
+# Se a conexão falhar, interrompe a execução do app
+if spreadsheet is None:
     st.stop()
-
 
 # --- CABEÇALHO DA APLICAÇÃO ---
 col1, col2 = st.columns([1, 4])
