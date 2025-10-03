@@ -218,7 +218,7 @@ def registrar_resposta(item_id, key):
     st.session_state.respostas[item_id] = st.session_state[key]
 
 for dimensao in dimensoes:
-    with st.expander(f"Dimensão: {dimensao}", expanded=True):
+    with st.expander(f"{dimensao}", expanded=True):
         df_dimensao = df_itens[df_itens["Dimensão"] == dimensao]
         for _, row in df_dimensao.iterrows():
             item_id = row["Código"]
@@ -230,7 +230,6 @@ for dimensao in dimensoes:
                 on_change=registrar_resposta, args=(item_id, widget_key)
             )
 
-observacoes = st.text_area("Observações (opcional):")
 
 # --- BOTÃO DE FINALIZAR E LÓGICA DE RESULTADOS/EXPORTAÇÃO ---
 if st.button("Finalizar e Enviar Respostas", type="primary"):
@@ -306,11 +305,7 @@ if st.button("Finalizar e Enviar Respostas", type="primary"):
                 
                 ws_respostas.append_rows(respostas_para_enviar, value_input_option='USER_ENTERED')
 
-                # 2. Preparar dados de observações
-                if observacoes:
-                    dados_obs = [[timestamp_str, respondente, observacoes]]
-                    ws_observacoes.append_rows(dados_obs, value_input_option='USER_ENTERED')
-                
+        
                 st.success("Suas respostas foram enviadas com sucesso para a planilha central!")
                 st.info("Você já pode fechar esta janela.")
                 st.balloons()
