@@ -91,20 +91,17 @@ try:
     gc = gspread.service_account_from_dict(creds_dict)
     
     # Abre a planilha pelo nome exato
-    spreadsheet = gc.open("Teste Conexão Streamlit")
+    spreadsheet = gc.open("Respostas Formularios")
     
     # Seleciona a primeira aba
     worksheet = spreadsheet.sheet1
-    
-    st.success("Conexão com Google Sheets bem-sucedida!")
 
 except Exception as e:
     st.error(f"Erro ao conectar com o Google Sheets: {e}")
     st.stop()
 
 # Seleciona as abas fora da função de cache
-ws_respostas = spreadsheet.worksheet("Respostas")
-ws_observacoes = spreadsheet.worksheet("Observacoes")
+ws_respostas = spreadsheet.worksheet("Saude")
 
 
 # --- CABEÇALHO DA APLICAÇÃO ---
