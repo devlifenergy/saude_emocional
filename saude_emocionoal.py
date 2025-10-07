@@ -155,9 +155,15 @@ dimensoes = df_itens["Dimensão"].unique().tolist()
 def registrar_resposta(item_id, key):
     st.session_state.respostas[item_id] = st.session_state[key]
 
+# O loop abaixo é o responsável pela alteração
 for dimensao in dimensoes:
-    with st.expander(f"{dimensao}", expanded=True):
-        df_dimensao = df_itens[df_itens["Dimensão"] == dimensao]
+    df_dimensao = df_itens[df_itens["Dimensão"] == dimensao]
+    
+    # Esta linha extrai a sigla (ex: 'CO', 'ESGS') a partir do código ('CO01', 'ESGS01')
+    prefixo_dimensao = df_dimensao['Código'].iloc[0][:-2] if not df_dimensao.empty else dimensao
+    
+    # A variável 'prefixo_dimensao' é usada como o título do cabeçalho
+    with st.expander(f"{prefixo_dimensao}", expanded=True):
         for _, row in df_dimensao.iterrows():
             item_id = row["Código"]
             label = f'({item_id}) {row["Item"]}' + (' (R)' if row["Reverso"] == 'SIM' else '')
