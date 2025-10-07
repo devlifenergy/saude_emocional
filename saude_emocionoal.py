@@ -1,9 +1,8 @@
-# app_lifenergy_esg_nr1_final.py
+# app_saude_emocional_final.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 import gspread
-from gspread_dataframe import set_with_dataframe
 
 # --- PALETA DE CORES E CONFIGURAÇÃO DA PÁGINA ---
 COLOR_PRIMARY = "#70D1C6"
@@ -17,69 +16,7 @@ st.set_page_config(
 
 # --- CSS CUSTOMIZADO PARA A INTERFACE ---
 # (O CSS foi omitido aqui para economizar espaço, mas deve estar no seu script)
-st.markdown(f"""
-    <style>
-        /* Remoção de elementos do Streamlit Cloud */
-        div[data-testid="stHeader"], div[data-testid="stDecoration"] {{
-            visibility: hidden; height: 0%; position: fixed;
-        }}
-        footer {{ visibility: hidden; height: 0%; }}
-        /* Estilos gerais */
-        .stApp {{ background-color: {COLOR_BACKGROUND}; color: {COLOR_TEXT_DARK}; }}
-        h1, h2, h3 {{ color: {COLOR_TEXT_DARK}; }}
-        /* Cabeçalho customizado */
-        .stApp > header {{
-            background-color: {COLOR_PRIMARY}; padding: 1rem;
-            border-bottom: 5px solid {COLOR_TEXT_DARK};
-        }}
-        /* Card de container */
-        div.st-emotion-cache-1r4qj8v {{
-             background-color: #f0f2f6; border-left: 5px solid {COLOR_PRIMARY};
-             border-radius: 5px; padding: 1.5rem; margin-top: 1rem;
-             margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }}
-        /* Inputs e Labels */
-        div[data-testid="textInputRootElement"] > label,
-        div[data-testid="stTextArea"] > label,
-        div[data-testid="stRadioGroup"] > label {{
-            color: {COLOR_TEXT_DARK}; font-weight: 600;
-        }}
-        div[data-testid="stTextInput"] input,
-        div[data-testid="stNumberInput"] input,
-        div[data-testid="stSelectbox"] > div,
-        div[data-testid="stTextArea"] textarea {{
-            border: 1px solid #cccccc;
-            border-radius: 5px;
-            background-color: #FFFFFF;
-        }}
-        /* Expanders */
-        .streamlit-expanderHeader {{
-            background-color: {COLOR_PRIMARY}; color: white; font-size: 1.2rem;
-            font-weight: bold; border-radius: 8px; margin-top: 1rem;
-            padding: 0.75rem 1rem; border: none; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }}
-        .streamlit-expanderHeader:hover {{ background-color: {COLOR_TEXT_DARK}; }}
-        .streamlit-expanderContent {{
-            background-color: #f9f9f9; border-left: 3px solid {COLOR_PRIMARY}; padding: 1rem;
-            border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; margin-bottom: 1rem;
-        }}
-        /* Botões de rádio (Likert) responsivos */
-        div[data-testid="stRadio"] > div {{
-            display: flex; flex-wrap: wrap; justify-content: flex-start;
-        }}
-        div[data-testid="stRadio"] label {{
-            margin-right: 1.2rem; margin-bottom: 0.5rem; color: {COLOR_TEXT_DARK};
-        }}
-        /* Botão de Finalizar */
-        .stButton button {{
-            background-color: {COLOR_PRIMARY}; color: white; font-weight: bold;
-            padding: 0.75rem 1.5rem; border-radius: 8px; border: none;
-        }}
-        .stButton button:hover {{
-            background-color: {COLOR_TEXT_DARK}; color: white;
-        }}
-    </style>
-""", unsafe_allow_html=True)
+st.markdown(f"""<style>...</style>""", unsafe_allow_html=True) 
 
 try:
     # Cria uma cópia editável das credenciais
@@ -144,29 +81,30 @@ with st.expander("Ver Orientações aos Respondentes", expanded=True):
 # --- LÓGICA DO QUESTIONÁRIO (BACK-END) ---
 @st.cache_data
 def carregar_itens():
+    # ##### ALTERAÇÃO APLICADA AQUI: CU -> CO #####
     data = [
-        ('CU01', 'Cultura Organizacional', 'PRÁTICAS', 'As práticas diárias refletem o que a liderança diz e cobra.', 'NÃO'),
-        ('CU02', 'Cultura Organizacional', 'PRÁTICAS', 'Processos críticos têm donos claros e rotina de revisão.', 'NÃO'),
-        ('CU03', 'Cultura Organizacional', 'SÍMBOLOS', 'A comunicação visual (quadros, murais, campanhas) reforça os valores da empresa.', 'NÃO'),
-        ('CU04', 'Cultura Organizacional', 'SÍMBOLOS', 'Reconhecimentos e premiações estão alinhados ao comportamento esperado.', 'NÃO'),
-        ('CU05', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Feedbacks e aprendizados com erros ocorrem sem punição inadequada.', 'NÃO'),
-        ('CU06', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Conflitos são tratados com respeito e foco em solução.', 'NÃO'),
-        ('CU07', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Integridade e respeito orientam decisões, mesmo sob pressão.', 'NÃO'),
-        ('CU08', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Não há tolerância a discriminação, assédio ou retaliação.', 'NÃO'),
-        ('CU09', 'Cultura Organizacional', 'PRINCÍPIOS', 'Critérios de decisão são transparentes e consistentes.', 'NÃO'),
-        ('CU10', 'Cultura Organizacional', 'PRINCÍPIOS', 'A empresa cumpre o que promete a pessoas e clientes.', 'NÃO'),
-        ('CU11', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que segurança e saúde emocional são inegociáveis.', 'NÃO'),
-        ('CU12', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que diversidade melhora resultados.', 'NÃO'),
-        ('CU13', 'Cultura Organizacional', 'CERIMÔNIAS', 'Há rituais de reconhecimento (semanal/mensal) que celebram comportamentos-chave.', 'NÃO'),
-        ('CU14', 'Cultura Organizacional', 'CERIMÔNIAS', 'Reuniões de resultado incluem aprendizados (o que manter, o que ajustar).', 'NÃO'),
-        ('CU15', 'Cultura Organizacional', 'POLÍTICAS', 'Políticas internas são conhecidas e aplicadas (não ficam só no papel).', 'NÃO'),
-        ('CU16', 'Cultura Organizacional', 'POLÍTICAS', 'Existe canal de denúncia acessível e confiável.', 'NÃO'),
-        ('CU17', 'Cultura Organizacional', 'SISTEMAS', 'Sistemas suportam o trabalho (não criam retrabalho ou gargalos).', 'NÃO'),
-        ('CU18', 'Cultura Organizacional', 'SISTEMAS', 'Indicadores de pessoas e segurança são acompanhados periodicamente.', 'NÃO'),
-        ('CU19', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'A linguagem interna é respeitosa e inclusiva.', 'NÃO'),
-        ('CU20', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'Termos e siglas são explicados para evitar exclusão.', 'NÃO'),
-        ('CU21', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Sinto segurança psicológica para expor opiniões e erros.', 'NÃO'),
-        ('CU22', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Consigo equilibrar trabalho e vida pessoal.', 'NÃO'),
+        ('CO01', 'Cultura Organizacional', 'PRÁTICAS', 'As práticas diárias refletem o que a liderança diz e cobra.', 'NÃO'),
+        ('CO02', 'Cultura Organizacional', 'PRÁTICAS', 'Processos críticos têm donos claros e rotina de revisão.', 'NÃO'),
+        ('CO03', 'Cultura Organizacional', 'SÍMBOLOS', 'A comunicação visual (quadros, murais, campanhas) reforça os valores da empresa.', 'NÃO'),
+        ('CO04', 'Cultura Organizacional', 'SÍMBOLOS', 'Reconhecimentos e premiações estão alinhados ao comportamento esperado.', 'NÃO'),
+        ('CO05', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Feedbacks e aprendizados com erros ocorrem sem punição inadequada.', 'NÃO'),
+        ('CO06', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Conflitos são tratados com respeito e foco em solução.', 'NÃO'),
+        ('CO07', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Integridade e respeito orientam decisões, mesmo sob pressão.', 'NÃO'),
+        ('CO08', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Não há tolerância a discriminação, assédio ou retaliação.', 'NÃO'),
+        ('CO09', 'Cultura Organizacional', 'PRINCÍPIOS', 'Critérios de decisão são transparentes e consistentes.', 'NÃO'),
+        ('CO10', 'Cultura Organizacional', 'PRINCÍPIOS', 'A empresa cumpre o que promete a pessoas e clientes.', 'NÃO'),
+        ('CO11', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que segurança e saúde emocional são inegociáveis.', 'NÃO'),
+        ('CO12', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que diversidade melhora resultados.', 'NÃO'),
+        ('CO13', 'Cultura Organizacional', 'CERIMÔNIAS', 'Há rituais de reconhecimento (semanal/mensal) que celebram comportamentos-chave.', 'NÃO'),
+        ('CO14', 'Cultura Organizacional', 'CERIMÔNIAS', 'Reuniões de resultado incluem aprendizados (o que manter, o que ajustar).', 'NÃO'),
+        ('CO15', 'Cultura Organizacional', 'POLÍTICAS', 'Políticas internas são conhecidas e aplicadas (não ficam só no papel).', 'NÃO'),
+        ('CO16', 'Cultura Organizacional', 'POLÍTICAS', 'Existe canal de denúncia acessível e confiável.', 'NÃO'),
+        ('CO17', 'Cultura Organizacional', 'SISTEMAS', 'Sistemas suportam o trabalho (não criam retrabalho ou gargalos).', 'NÃO'),
+        ('CO18', 'Cultura Organizacional', 'SISTEMAS', 'Indicadores de pessoas e segurança são acompanhados periodicamente.', 'NÃO'),
+        ('CO19', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'A linguagem interna é respeitosa e inclusiva.', 'NÃO'),
+        ('CO20', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'Termos e siglas são explicados para evitar exclusão.', 'NÃO'),
+        ('CO21', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Sinto segurança psicológica para expor opiniões e erros.', 'NÃO'),
+        ('CO22', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Consigo equilibrar trabalho e vida pessoal.', 'NÃO'),
         ('ESGS01', 'ESG — Pilar Social', 'Diversidade & Inclusão', 'Práticas de contratação e promoção são justas e inclusivas.', 'NÃO'),
         ('ESGS02', 'ESG — Pilar Social', 'Diversidade & Inclusão', 'A empresa promove ambientes livres de assédio e discriminação.', 'NÃO'),
         ('ESGS03', 'ESG — Pilar Social', 'Saúde & Bem-estar', 'Tenho acesso a ações de saúde/apoio emocional quando preciso.', 'NÃO'),
