@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import gspread
+import matplotlib.pyplot as plt
 
 # --- PALETA DE CORES E CONFIGURAÇÃO DA PÁGINA ---
 COLOR_PRIMARY = "#70D1C6"
@@ -227,7 +228,22 @@ if st.button("Finalizar e Enviar Respostas", type="primary"):
             st.subheader("Média por Dimensão")
             st.dataframe(resumo_dimensoes, use_container_width=True, hide_index=True)
             st.subheader("Gráfico Comparativo por Dimensão")
-            st.bar_chart(resumo_dimensoes.set_index("Dimensão")["Média"])
+            
+            # --- CÓDIGO DO GRÁFICO DE PIZZA ---
+            # Cria a figura e os eixos do gráfico
+            fig, ax = plt.subplots()
+            
+            # Gera o gráfico de pizza
+            # 'labels' usa a coluna 'Dimensão' para os nomes das fatias
+            # 'x' usa a coluna 'Média' para os tamanhos das fatias
+            # 'autopct' formata a porcentagem em cada fatia
+            ax.pie(x=resumo_dimensoes["Média"], labels=resumo_dimensoes["Dimensão"], autopct='%1.1f%%', startangle=90)
+            
+            # Garante que o gráfico seja um círculo
+            ax.axis('equal')
+            
+            # Exibe o gráfico gerado no Streamlit
+            st.pyplot(fig)
         
         # --- LÓGICA DE ENVIO PARA GOOGLE SHEETS ---
         with st.spinner("Enviando dados para a planilha..."):
