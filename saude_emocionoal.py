@@ -106,7 +106,7 @@ def connect_to_gsheet():
 ws_respostas = connect_to_gsheet()
 
 if ws_respostas is None:
-    st.error("Não foi possível conectar à aba 'Fatores_Interpessoais' da planilha.")
+    st.error("Não foi possível conectar à aba 'Saude' da planilha.")
     st.stop()
 
 
