@@ -194,58 +194,6 @@ if st.button("Finalizar e Enviar Respostas", type="primary"):
             })
         dfr = pd.DataFrame(respostas_list)
 
-        dfr_numerico = dfr[pd.to_numeric(dfr['Resposta'], errors='coerce').notna()].copy()
-        if not dfr_numerico.empty:
-            dfr_numerico['Resposta'] = dfr_numerico['Resposta'].astype(int)
-            def ajustar_reverso(row):
-                return (6 - row["Resposta"]) if row["Reverso"] == "SIM" else row["Resposta"]
-            dfr_numerico["Pontuação"] = dfr_numerico.apply(ajustar_reverso, axis=1)
-
-            media_cultura = dfr_numerico[dfr_numerico['Dimensão'] == 'Cultura Organizacional']['Pontuação'].mean()
-            media_esg_s = dfr_numerico[dfr_numerico['Dimensão'] == 'ESG — Pilar Social']['Pontuação'].mean()
-            media_esg_g = dfr_numerico[dfr_numerico['Dimensão'] == 'ESG — Governança']['Pontuação'].mean()
-            media_nr1 = dfr_numerico[dfr_numerico['Dimensão'] == 'NR-1 — GRO/PGR']['Pontuação'].mean()
-            media_frps = dfr_numerico[dfr_numerico['Dimensão'] == 'Fatores de Risco Psicossocial (FRPS)']['Pontuação'].mean()
-            media_esg_total = (media_esg_s + media_esg_g) / 2 if pd.notna(media_esg_s) and pd.notna(media_esg_g) else 0
-            score_global = (0.40 * media_cultura) + (0.25 * media_esg_total) + (0.35 * media_nr1)
-            
-            if score_global >= 4.20: interpretacao = "Excelente"
-            elif score_global >= 3.60: interpretacao = "Bom"
-            elif score_global >= 2.80: interpretacao = "Atenção"
-            else: interpretacao = "Crítico"
-
-            resumo_dimensoes = pd.DataFrame({
-                "Dimensão": ["Score Global Ponderado", "Cultura Organizacional", "ESG — Total", "NR-1 — GRO/PGR", "Proteção FRPS (Reverso)"],
-                "Média": [score_global, media_cultura, media_esg_total, media_nr1, media_frps]
-            })
-        else:
-            score_global, interpretacao = 0, "N/A"
-            resumo_dimensoes = pd.DataFrame(columns=["Dimensão", "Média"])
-
-        st.metric(f"Score Global: {interpretacao}", f"{score_global:.2f}")
-
-        if not resumo_dimensoes.empty:
-            st.subheader("Média por Dimensão")
-            st.dataframe(resumo_dimensoes, use_container_width=True, hide_index=True)
-            st.subheader("Gráfico Comparativo por Dimensão")
-            
-            # --- CÓDIGO DO GRÁFICO DE PIZZA ---
-            # Cria a figura e os eixos do gráfico
-            fig, ax = plt.subplots()
-            
-            # Gera o gráfico de pizza
-            # 'labels' usa a coluna 'Dimensão' para os nomes das fatias
-            # 'x' usa a coluna 'Média' para os tamanhos das fatias
-            # 'autopct' formata a porcentagem em cada fatia
-            ax.pie(x=resumo_dimensoes["Média"], labels=resumo_dimensoes["Dimensão"], autopct='%1.1f%%', startangle=90)
-            
-            # Garante que o gráfico seja um círculo
-            ax.axis('equal')
-            
-            # Exibe o gráfico gerado no Streamlit
-            st.pyplot(fig)
-        
-        # --- LÓGICA DE ENVIO PARA GOOGLE SHEETS ---
         with st.spinner("Enviando dados para a planilha..."):
             try:
                 # 1. Preparar dados das respostas
@@ -264,10 +212,8 @@ if st.button("Finalizar e Enviar Respostas", type="primary"):
                     ])
                 
                 ws_respostas.append_rows(respostas_para_enviar, value_input_option='USER_ENTERED')
-
         
                 st.success("Suas respostas foram enviadas com sucesso!")
-                st.info("Você já pode fechar esta janela.")
                 st.balloons()
             except Exception as e:
                 st.error(f"Erro ao enviar dados para a planilha: {e}")
