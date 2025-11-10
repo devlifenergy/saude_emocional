@@ -135,206 +135,239 @@ with st.container(border=True):
     
 # --- Lógica de Verificação da URL ---
     org_coletora_valida = "Instituto Wedja de Socionomia" # Valor padrão seguro
-    try:
-        query_params = st.query_params
-        org_encoded_from_url = query_params.get("org")
-        sig_from_url = query_params.get("sig")
-        
-        if org_encoded_from_url and sig_from_url:
-            org_decoded = urllib.parse.unquote(org_encoded_from_url)
-            
-            # Recalcula a assinatura
-            secret_key = st.secrets["LINK_SECRET_KEY"].encode('utf-8')
-            message = org_decoded.encode('utf-8')
-            calculated_sig = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
-            
-            # Compara as assinaturas de forma segura
-            if hmac.compare_digest(calculated_sig, sig_from_url):
-                org_coletora_valida = org_decoded # Assinatura válida, usa o nome da URL
-            else:
-                st.warning("Link inválido ou adulterado. Usando organização padrão.")
-        # Se 'org' ou 'sig' não estiverem na URL, usa o valor padrão
-        
-    except Exception as e:
-        st.error(f"Erro ao processar parâmetros da URL: {e}")
-        # Mantém o valor padrão em caso de erro
-    # --- Fim da Lógica de Verificação ---
+    link_valido = False # Começa como inválido por padrão
 
+try:
+    query_params = st.query_params
+    org_encoded_from_url = query_params.get("org")
+    exp_from_url = query_params.get("exp") # Parâmetro de expiração
+    sig_from_url = query_params.get("sig") # Parâmetro de assinatura
+    
+    # 1. Verifica se todos os parâmetros de segurança existem
+    if org_encoded_from_url and exp_from_url and sig_from_url:
+        org_decoded = urllib.parse.unquote(org_encoded_from_url)
+        
+        # 2. Recalcula a assinatura (com base na org + exp)
+        secret_key = st.secrets["LINK_SECRET_KEY"].encode('utf-8')
+        message = f"{org_decoded}|{exp_from_url}".encode('utf-8')
+        calculated_sig = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
+        
+        # 3. Compara as assinaturas
+        if hmac.compare_digest(calculated_sig, sig_from_url):
+            # Assinatura OK! Agora verifica a data de validade
+            timestamp_validade = int(exp_from_url)
+            timestamp_atual = int(datetime.now().timestamp())
+            
+            if timestamp_atual <= timestamp_validade:
+                # SUCESSO: Assinatura válida E dentro da data
+                link_valido = True
+                org_coletora_valida = org_decoded
+            else:
+                # FALHA: Link expirou
+                st.error("Link Expirado. Por favor, solicite um novo link.")
+        else:
+            # FALHA: Assinatura não bate, link adulterado
+            st.error("Link inválido ou adulterado.")
+    else:
+         # Se nenhum parâmetro for passado (acesso direto), permite o uso com valor padrão
+         if not (org_encoded_from_url or exp_from_url or sig_from_url):
+             link_valido = True
+         else:
+             st.error("Link inválido. Faltando parâmetros de segurança.")
+
+except KeyError:
+     st.error("ERRO DE CONFIGURAÇÃO: O app não pôde verificar a segurança do link. Contate o administrador.")
+     link_valido = False
+except Exception as e:
+    st.error(f"Erro ao processar o link: {e}")
+    link_valido = False
+
+# Renderiza os campos de identificação
+with st.container(border=True):
+    st.markdown("<h3 style='text-align: center;'>Identificação</h3>", unsafe_allow_html=True)
     col1_form, col2_form = st.columns(2)
     with col1_form:
         respondente = st.text_input("Respondente:", key="input_respondente")
-        # Usa o valor validado ou padrão
-        organizacao_coletora = st.text_input("Organização Coletora:", value=org_coletora_valida, disabled=True) 
+        data = st.text_input("Data:", datetime.now().strftime('%d/%m/%Y')) 
     with col2_form:
-        data = st.text_input("Data:", datetime.now().strftime('%d/%m/%Y')) # Ajustado nome da variável
+        # O campo agora usa o valor validado e está sempre desabilitado
+        organizacao_coletora = st.text_input(
+            "Organização Coletora:", 
+            value=org_coletora_valida, 
+            disabled=True
+        )
 
+# --- BLOQUEIO DO FORMULÁRIO SE O LINK FOR INVÁLIDO ---
+if not link_valido:
+    st.error("Acesso ao formulário bloqueado.")
+    st.stop() # Para a execução, escondendo o questionário e o botão de envio
+else:
 # --- INSTRUÇÕES ---
-with st.expander("Ver Orientações aos Respondentes", expanded=True):
-    st.info(
-        """
-        - **Janela de referência:** últimos 3 meses.
-        - **Escala Likert 1–5:** 1=Discordo totalmente • 2=Discordo • 3=Neutro • 4=Concordo • 5=Concordo totalmente.
-        - **Confidencialidade/LGPD:** Dados agrupados para fins de diagnóstico; sem avaliações individuais.
-        """
-    )
+    with st.expander("Ver Orientações aos Respondentes", expanded=True):
+        st.info(
+            """
+            - **Janela de referência:** últimos 3 meses.
+            - **Escala Likert 1–5:** 1=Discordo totalmente • 2=Discordo • 3=Neutro • 4=Concordo • 5=Concordo totalmente.
+            - **Confidencialidade/LGPD:** Dados agrupados para fins de diagnóstico; sem avaliações individuais.
+            """
+        )
 
 
 # --- LÓGICA DO QUESTIONÁRIO (BACK-END) ---
-@st.cache_data
-def carregar_itens():
-    # ##### ALTERAÇÃO APLICADA AQUI: CU -> CO #####
-    data = [
-        ('CO01', 'Cultura Organizacional', 'PRÁTICAS', 'As práticas diárias refletem o que a liderança diz e cobra.', 'NÃO'),
-        ('CO02', 'Cultura Organizacional', 'PRÁTICAS', 'Processos críticos têm donos claros e rotina de revisão.', 'NÃO'),
-        ('CO03', 'Cultura Organizacional', 'SÍMBOLOS', 'A comunicação visual (quadros, murais, campanhas) reforça os valores da empresa.', 'NÃO'),
-        ('CO04', 'Cultura Organizacional', 'SÍMBOLOS', 'Reconhecimentos e premiações estão alinhados ao comportamento esperado.', 'NÃO'),
-        ('CO05', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Feedbacks e aprendizados com erros ocorrem sem punição inadequada.', 'NÃO'),
-        ('CO06', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Conflitos são tratados com respeito e foco em solução.', 'NÃO'),
-        ('CO07', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Integridade e respeito orientam decisões, mesmo sob pressão.', 'NÃO'),
-        ('CO08', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Não há tolerância a discriminação, assédio ou retaliação.', 'NÃO'),
-        ('CO09', 'Cultura Organizacional', 'PRINCÍPIOS', 'Critérios de decisão são transparentes e consistentes.', 'NÃO'),
-        ('CO10', 'Cultura Organizacional', 'PRINCÍPIOS', 'A empresa cumpre o que promete a pessoas e clientes.', 'NÃO'),
-        ('CO11', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que segurança e saúde emocional são inegociáveis.', 'NÃO'),
-        ('CO12', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que diversidade melhora resultados.', 'NÃO'),
-        ('CO13', 'Cultura Organizacional', 'CERIMÔNIAS', 'Há rituais de reconhecimento (semanal/mensal) que celebram comportamentos-chave.', 'NÃO'),
-        ('CO14', 'Cultura Organizacional', 'CERIMÔNIAS', 'Reuniões de resultado incluem aprendizados (o que manter, o que ajustar).', 'NÃO'),
-        ('CO15', 'Cultura Organizacional', 'POLÍTICAS', 'Políticas internas são conhecidas e aplicadas (não ficam só no papel).', 'NÃO'),
-        ('CO16', 'Cultura Organizacional', 'POLÍTICAS', 'Existe canal de denúncia acessível e confiável.', 'NÃO'),
-        ('CO17', 'Cultura Organizacional', 'SISTEMAS', 'Sistemas suportam o trabalho (não criam retrabalho ou gargalos).', 'NÃO'),
-        ('CO18', 'Cultura Organizacional', 'SISTEMAS', 'Indicadores de pessoas e segurança são acompanhados periodicamente.', 'NÃO'),
-        ('CO19', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'A linguagem interna é respeitosa e inclusiva.', 'NÃO'),
-        ('CO20', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'Termos e siglas são explicados para evitar exclusão.', 'NÃO'),
-        ('CO21', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Sinto segurança psicológica para expor opiniões e erros.', 'NÃO'),
-        ('CO22', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Consigo equilibrar trabalho e vida pessoal.', 'NÃO'),
-        ('ESGS01', 'ESG — Pilar Social', 'Diversidade & Inclusão', 'Práticas de contratação e promoção são justas e inclusivas.', 'NÃO'),
-        ('ESGS02', 'ESG — Pilar Social', 'Diversidade & Inclusão', 'A empresa promove ambientes livres de assédio e discriminação.', 'NÃO'),
-        ('ESGS03', 'ESG — Pilar Social', 'Saúde & Bem-estar', 'Tenho acesso a ações de saúde/apoio emocional quando preciso.', 'NÃO'),
-        ('ESGS04', 'ESG — Pilar Social', 'Saúde & Bem-estar', 'Carga de trabalho é ajustada para prevenir sobrecarga crônica.', 'NÃO'),
-        ('ESGS05', 'ESG — Pilar Social', 'Desenvolvimento & Capacitação', 'Recebo treinamentos relevantes ao meu perfil de risco e função.', 'NÃO'),
-        ('ESGS06', 'ESG — Pilar Social', 'Desenvolvimento & Capacitação', 'Tenho oportunidades reais de desenvolvimento profissional.', 'NÃO'),
-        ('ESGS07', 'ESG — Pilar Social', 'Diálogo & Participação', 'Sou ouvido(a) nas decisões que afetam meu trabalho.', 'NÃO'),
-        ('ESGS08', 'ESG — Pilar Social', 'Diálogo & Participação', 'A comunicação interna é clara e no tempo certo.', 'NÃO'),
-        ('ESGG01', 'ESG — Governança', 'Ética & Compliance', 'Conheço o Código de Ética e como reportar condutas impróprias.', 'NÃO'),
-        ('ESGG02', 'ESG — Governança', 'Ética & Compliance', 'Sinto confiança nos processos de investigação e resposta a denúncias.', 'NÃO'),
-        ('ESGG03', 'ESG — Governança', 'Transparência & Accountability', 'Metas e resultados são divulgados com clareza.', 'NÃO'),
-        ('ESGG04', 'ESG — Governança', 'Transparência & Accountability', 'Há prestação de contas sobre planos e ações corretivas.', 'NÃO'),
-        ('ESGG05', 'ESG — Governança', 'Gestão de Riscos & Controles', 'Riscos relevantes são identificados e acompanhados regularmente.', 'NÃO'),
-        ('ESGG06', 'ESG — Governança', 'Gestão de Riscos & Controles', 'Controles internos funcionam e são revisados quando necessário.', 'NÃO'),
-        ('ESGG07', 'ESG — Governança', 'Documentação PGR/Planos', 'Inventário de riscos e planos de ação (PGR) estão atualizados e acessíveis.', 'NÃO'),
-        ('ESGG08', 'ESG — Governança', 'Documentação PGR/Planos', 'Mudanças de processo passam por avaliação de risco antes da implantação.', 'NÃO'),
-        ('ESGG09', 'ESG — Governança', 'Canais de Denúncia', 'O canal de denúncia é acessível e protege contra retaliações.', 'NÃO'),
-        ('ESGG10', 'ESG — Governança', 'Canais de Denúncia', 'Sinto que denúncias geram ações efetivas.', 'NÃO'),
-        ('NR101', 'NR-1 — GRO/PGR', 'Identificação de perigos', 'Tenho meios simples para reportar incidentes/quase-acidentes e perigos.', 'NÃO'),
-        ('NR102', 'NR-1 — GRO/PGR', 'Avaliação de riscos', 'No meu posto, riscos são avaliados considerando exposição e severidade x probabilidade.', 'NÃO'),
-        ('NR103', 'NR-1 — GRO/PGR', 'Hierarquia de controles', 'A empresa prioriza eliminar/substituir riscos antes de recorrer ao EPI.', 'NÃO'),
-        ('NR104', 'NR-1 — GRO/PGR', 'Treinamentos & Mudanças', 'Recebo treinamento quando há mudanças de função/processo/equipamentos.', 'NÃO'),
-        ('NR105', 'NR-1 — GRO/PGR', 'Inspeções & Observações', 'Há inspeções/observações de segurança com frequência adequada.', 'NÃO'),
-        ('NR106', 'NR-1 — GRO/PGR', 'Comunicação de riscos', 'Sinalização e procedimentos são claros e atualizados.', 'NÃO'),
-        ('NR107', 'NR-1 — GRO/PGR', 'Participação dos trabalhadores', 'Sou convidado(a) a participar das discussões de riscos e soluções.', 'NÃO'),
-        ('NR108', 'NR-1 — GRO/PGR', 'Emergências & Investigação', 'Planos de emergência são conhecidos e incidentes são investigados com ações corretivas.', 'NÃO'),
-        ('FRPS01', 'Fatores de Risco Psicossocial (FRPS)', 'Assédio', 'No meu ambiente há piadas, constrangimentos ou condutas indesejadas.', 'SIM'),
-        ('FRPS02', 'Fatores de Risco Psicossocial (FRPS)', 'Assédio', 'Tenho receio de represálias ao reportar assédio ou condutas impróprias.', 'SIM'),
-        ('FRPS03', 'Fatores de Risco Psicossocial (FRPS)', 'Relacionamentos', 'Conflitos entre áreas/pessoas permanecem sem solução por muito tempo.', 'SIM'),
-        ('FRPS04', 'Fatores de Risco Psicossocial (FRPS)', 'Relacionamentos', 'Falta respeito nas interações do dia a dia.', 'SIM'),
-        ('FRPS05', 'Fatores de Risco Psicossocial (FRPS)', 'Comunicação Difícil', 'Falta de informações atrapalha minha entrega.', 'SIM'),
-        ('FRPS06', 'Fatores de Risco Psicossocial (FRPS)', 'Comunicação Difícil', 'Mensagens importantes chegam tarde ou de forma confusa.', 'SIM'),
-        ('FRPS07', 'Fatores de Risco Psicossocial (FRPS)', 'Remoto/Isolado', 'Trabalho frequentemente isolado sem suporte adequado.', 'SIM'),
-        ('FRPS08', 'Fatores de Risco Psicossocial (FRPS)', 'Remoto/Isolado', 'Em teletrabalho me sinto desconectado(a) da equipe.', 'SIM'),
-        ('FRPS09', 'Fatores de Risco Psicossocial (FRPS)', 'Excesso de Demandas', 'A sobrecarga e prazos incompatíveis são frequentes.', 'SIM'),
-        ('FRPS10', 'Fatores de Risco Psicossocial (FRPS)', 'Excesso de Demandas', 'As expectativas de produtividade são irreais no meu contexto.', 'SIM'),
-    ]
-    df = pd.DataFrame(data, columns=["Código", "Dimensão", "Subcategoria", "Item", "Reverso"])
-    return df
+    @st.cache_data
+    def carregar_itens():
+        # ##### ALTERAÇÃO APLICADA AQUI: CU -> CO #####
+        data = [
+            ('CO01', 'Cultura Organizacional', 'PRÁTICAS', 'As práticas diárias refletem o que a liderança diz e cobra.', 'NÃO'),
+            ('CO02', 'Cultura Organizacional', 'PRÁTICAS', 'Processos críticos têm donos claros e rotina de revisão.', 'NÃO'),
+            ('CO03', 'Cultura Organizacional', 'SÍMBOLOS', 'A comunicação visual (quadros, murais, campanhas) reforça os valores da empresa.', 'NÃO'),
+            ('CO04', 'Cultura Organizacional', 'SÍMBOLOS', 'Reconhecimentos e premiações estão alinhados ao comportamento esperado.', 'NÃO'),
+            ('CO05', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Feedbacks e aprendizados com erros ocorrem sem punição inadequada.', 'NÃO'),
+            ('CO06', 'Cultura Organizacional', 'HÁBITOS & COMPORTAMENTOS', 'Conflitos são tratados com respeito e foco em solução.', 'NÃO'),
+            ('CO07', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Integridade e respeito orientam decisões, mesmo sob pressão.', 'NÃO'),
+            ('CO08', 'Cultura Organizacional', 'VALORES ÉTICOS & MORAIS', 'Não há tolerância a discriminação, assédio ou retaliação.', 'NÃO'),
+            ('CO09', 'Cultura Organizacional', 'PRINCÍPIOS', 'Critérios de decisão são transparentes e consistentes.', 'NÃO'),
+            ('CO10', 'Cultura Organizacional', 'PRINCÍPIOS', 'A empresa cumpre o que promete a pessoas e clientes.', 'NÃO'),
+            ('CO11', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que segurança e saúde emocional são inegociáveis.', 'NÃO'),
+            ('CO12', 'Cultura Organizacional', 'CRENÇAS', 'Acreditamos que diversidade melhora resultados.', 'NÃO'),
+            ('CO13', 'Cultura Organizacional', 'CERIMÔNIAS', 'Há rituais de reconhecimento (semanal/mensal) que celebram comportamentos-chave.', 'NÃO'),
+            ('CO14', 'Cultura Organizacional', 'CERIMÔNIAS', 'Reuniões de resultado incluem aprendizados (o que manter, o que ajustar).', 'NÃO'),
+            ('CO15', 'Cultura Organizacional', 'POLÍTICAS', 'Políticas internas são conhecidas e aplicadas (não ficam só no papel).', 'NÃO'),
+            ('CO16', 'Cultura Organizacional', 'POLÍTICAS', 'Existe canal de denúncia acessível e confiável.', 'NÃO'),
+            ('CO17', 'Cultura Organizacional', 'SISTEMAS', 'Sistemas suportam o trabalho (não criam retrabalho ou gargalos).', 'NÃO'),
+            ('CO18', 'Cultura Organizacional', 'SISTEMAS', 'Indicadores de pessoas e segurança são acompanhados periodicamente.', 'NÃO'),
+            ('CO19', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'A linguagem interna é respeitosa e inclusiva.', 'NÃO'),
+            ('CO20', 'Cultura Organizacional', 'JARGÃO/LINGUAGEM', 'Termos e siglas são explicados para evitar exclusão.', 'NÃO'),
+            ('CO21', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Sinto segurança psicológica para expor opiniões e erros.', 'NÃO'),
+            ('CO22', 'Cultura Organizacional', 'CLIMA ORGANIZACIONAL', 'Consigo equilibrar trabalho e vida pessoal.', 'NÃO'),
+            ('ESGS01', 'ESG — Pilar Social', 'Diversidade & Inclusão', 'Práticas de contratação e promoção são justas e inclusivas.', 'NÃO'),
+            ('ESGS02', 'ESG — Pilar Social', 'Diversidade & Inclusão', 'A empresa promove ambientes livres de assédio e discriminação.', 'NÃO'),
+            ('ESGS03', 'ESG — Pilar Social', 'Saúde & Bem-estar', 'Tenho acesso a ações de saúde/apoio emocional quando preciso.', 'NÃO'),
+            ('ESGS04', 'ESG — Pilar Social', 'Saúde & Bem-estar', 'Carga de trabalho é ajustada para prevenir sobrecarga crônica.', 'NÃO'),
+            ('ESGS05', 'ESG — Pilar Social', 'Desenvolvimento & Capacitação', 'Recebo treinamentos relevantes ao meu perfil de risco e função.', 'NÃO'),
+            ('ESGS06', 'ESG — Pilar Social', 'Desenvolvimento & Capacitação', 'Tenho oportunidades reais de desenvolvimento profissional.', 'NÃO'),
+            ('ESGS07', 'ESG — Pilar Social', 'Diálogo & Participação', 'Sou ouvido(a) nas decisões que afetam meu trabalho.', 'NÃO'),
+            ('ESGS08', 'ESG — Pilar Social', 'Diálogo & Participação', 'A comunicação interna é clara e no tempo certo.', 'NÃO'),
+            ('ESGG01', 'ESG — Governança', 'Ética & Compliance', 'Conheço o Código de Ética e como reportar condutas impróprias.', 'NÃO'),
+            ('ESGG02', 'ESG — Governança', 'Ética & Compliance', 'Sinto confiança nos processos de investigação e resposta a denúncias.', 'NÃO'),
+            ('ESGG03', 'ESG — Governança', 'Transparência & Accountability', 'Metas e resultados são divulgados com clareza.', 'NÃO'),
+            ('ESGG04', 'ESG — Governança', 'Transparência & Accountability', 'Há prestação de contas sobre planos e ações corretivas.', 'NÃO'),
+            ('ESGG05', 'ESG — Governança', 'Gestão de Riscos & Controles', 'Riscos relevantes são identificados e acompanhados regularmente.', 'NÃO'),
+            ('ESGG06', 'ESG — Governança', 'Gestão de Riscos & Controles', 'Controles internos funcionam e são revisados quando necessário.', 'NÃO'),
+            ('ESGG07', 'ESG — Governança', 'Documentação PGR/Planos', 'Inventário de riscos e planos de ação (PGR) estão atualizados e acessíveis.', 'NÃO'),
+            ('ESGG08', 'ESG — Governança', 'Documentação PGR/Planos', 'Mudanças de processo passam por avaliação de risco antes da implantação.', 'NÃO'),
+            ('ESGG09', 'ESG — Governança', 'Canais de Denúncia', 'O canal de denúncia é acessível e protege contra retaliações.', 'NÃO'),
+            ('ESGG10', 'ESG — Governança', 'Canais de Denúncia', 'Sinto que denúncias geram ações efetivas.', 'NÃO'),
+            ('NR101', 'NR-1 — GRO/PGR', 'Identificação de perigos', 'Tenho meios simples para reportar incidentes/quase-acidentes e perigos.', 'NÃO'),
+            ('NR102', 'NR-1 — GRO/PGR', 'Avaliação de riscos', 'No meu posto, riscos são avaliados considerando exposição e severidade x probabilidade.', 'NÃO'),
+            ('NR103', 'NR-1 — GRO/PGR', 'Hierarquia de controles', 'A empresa prioriza eliminar/substituir riscos antes de recorrer ao EPI.', 'NÃO'),
+            ('NR104', 'NR-1 — GRO/PGR', 'Treinamentos & Mudanças', 'Recebo treinamento quando há mudanças de função/processo/equipamentos.', 'NÃO'),
+            ('NR105', 'NR-1 — GRO/PGR', 'Inspeções & Observações', 'Há inspeções/observações de segurança com frequência adequada.', 'NÃO'),
+            ('NR106', 'NR-1 — GRO/PGR', 'Comunicação de riscos', 'Sinalização e procedimentos são claros e atualizados.', 'NÃO'),
+            ('NR107', 'NR-1 — GRO/PGR', 'Participação dos trabalhadores', 'Sou convidado(a) a participar das discussões de riscos e soluções.', 'NÃO'),
+            ('NR108', 'NR-1 — GRO/PGR', 'Emergências & Investigação', 'Planos de emergência são conhecidos e incidentes são investigados com ações corretivas.', 'NÃO'),
+            ('FRPS01', 'Fatores de Risco Psicossocial (FRPS)', 'Assédio', 'No meu ambiente há piadas, constrangimentos ou condutas indesejadas.', 'SIM'),
+            ('FRPS02', 'Fatores de Risco Psicossocial (FRPS)', 'Assédio', 'Tenho receio de represálias ao reportar assédio ou condutas impróprias.', 'SIM'),
+            ('FRPS03', 'Fatores de Risco Psicossocial (FRPS)', 'Relacionamentos', 'Conflitos entre áreas/pessoas permanecem sem solução por muito tempo.', 'SIM'),
+            ('FRPS04', 'Fatores de Risco Psicossocial (FRPS)', 'Relacionamentos', 'Falta respeito nas interações do dia a dia.', 'SIM'),
+            ('FRPS05', 'Fatores de Risco Psicossocial (FRPS)', 'Comunicação Difícil', 'Falta de informações atrapalha minha entrega.', 'SIM'),
+            ('FRPS06', 'Fatores de Risco Psicossocial (FRPS)', 'Comunicação Difícil', 'Mensagens importantes chegam tarde ou de forma confusa.', 'SIM'),
+            ('FRPS07', 'Fatores de Risco Psicossocial (FRPS)', 'Remoto/Isolado', 'Trabalho frequentemente isolado sem suporte adequado.', 'SIM'),
+            ('FRPS08', 'Fatores de Risco Psicossocial (FRPS)', 'Remoto/Isolado', 'Em teletrabalho me sinto desconectado(a) da equipe.', 'SIM'),
+            ('FRPS09', 'Fatores de Risco Psicossocial (FRPS)', 'Excesso de Demandas', 'A sobrecarga e prazos incompatíveis são frequentes.', 'SIM'),
+            ('FRPS10', 'Fatores de Risco Psicossocial (FRPS)', 'Excesso de Demandas', 'As expectativas de produtividade são irreais no meu contexto.', 'SIM'),
+        ]
+        df = pd.DataFrame(data, columns=["Código", "Dimensão", "Subcategoria", "Item", "Reverso"])
+        return df
 
-# --- INICIALIZAÇÃO E FORMULÁRIO DINÂMICO ---
-df_itens = carregar_itens()
-if 'respostas' not in st.session_state:
-    st.session_state.respostas = {}
+    # --- INICIALIZAÇÃO E FORMULÁRIO DINÂMICO ---
+    df_itens = carregar_itens()
+    if 'respostas' not in st.session_state:
+        st.session_state.respostas = {}
 
-st.subheader("Questionário")
-dimensoes = df_itens["Dimensão"].unique().tolist()
-def registrar_resposta(item_id, key):
-    st.session_state.respostas[item_id] = st.session_state[key]
+    st.subheader("Questionário")
+    dimensoes = df_itens["Dimensão"].unique().tolist()
+    def registrar_resposta(item_id, key):
+        st.session_state.respostas[item_id] = st.session_state[key]
 
-# O loop abaixo é o responsável pela alteração
-for dimensao in dimensoes:
-    df_dimensao = df_itens[df_itens["Dimensão"] == dimensao]
-    
-    # Esta linha extrai a sigla (ex: 'CO', 'ESGS') a partir do código ('CO01', 'ESGS01')
-    prefixo_dimensao = df_dimensao['Código'].iloc[0][:-2] if not df_dimensao.empty else dimensao
-    
-    # A variável 'prefixo_dimensao' é usada como o título do cabeçalho
-    with st.expander(f"{prefixo_dimensao}", expanded=True):
-        for _, row in df_dimensao.iterrows():
-            item_id = row["Código"]
-            label = f'({item_id}) {row["Item"]}' + (' (R)' if row["Reverso"] == 'SIM' else '')
-            widget_key = f"radio_{item_id}"
-            st.radio(
-                label, options=["N/A", 1, 2, 3, 4, 5],
-                horizontal=True, key=widget_key,
-                on_change=registrar_resposta, args=(item_id, widget_key)
-            )
+    # O loop abaixo é o responsável pela alteração
+    for dimensao in dimensoes:
+        df_dimensao = df_itens[df_itens["Dimensão"] == dimensao]
 
-# --- VALIDAÇÃO E BOTÃO DE FINALIZAR (MOVIDO PARA O FINAL) ---
-# Calcula o número de respostas válidas (excluindo N/A)
-respostas_validas_contadas = 0
-if 'respostas' in st.session_state:
-    for resposta in st.session_state.respostas.values():
-        if resposta is not None and resposta != "N/A":
-            respostas_validas_contadas += 1
+        # Esta linha extrai a sigla (ex: 'CO', 'ESGS') a partir do código ('CO01', 'ESGS01')
+        prefixo_dimensao = df_dimensao['Código'].iloc[0][:-2] if not df_dimensao.empty else dimensao
 
-total_perguntas = len(df_itens)
-limite_respostas = total_perguntas / 2
+        # A variável 'prefixo_dimensao' é usada como o título do cabeçalho
+        with st.expander(f"{prefixo_dimensao}", expanded=True):
+            for _, row in df_dimensao.iterrows():
+                item_id = row["Código"]
+                label = f'({item_id}) {row["Item"]}' + (' (R)' if row["Reverso"] == 'SIM' else '')
+                widget_key = f"radio_{item_id}"
+                st.radio(
+                    label, options=["N/A", 1, 2, 3, 4, 5],
+                    horizontal=True, key=widget_key,
+                    on_change=registrar_resposta, args=(item_id, widget_key)
+                )
 
-# Determina se o botão deve ser desabilitado
-botao_desabilitado = respostas_validas_contadas < limite_respostas
+    # --- VALIDAÇÃO E BOTÃO DE FINALIZAR (MOVIDO PARA O FINAL) ---
+    # Calcula o número de respostas válidas (excluindo N/A)
+    respostas_validas_contadas = 0
+    if 'respostas' in st.session_state:
+        for resposta in st.session_state.respostas.values():
+            if resposta is not None and resposta != "N/A":
+                respostas_validas_contadas += 1
 
-# Exibe aviso se o botão estiver desabilitado
-if botao_desabilitado:
-    st.warning(f"Responda 50% das perguntas (excluindo 'N/A') para habilitar o envio. ({respostas_validas_contadas}/{total_perguntas} válidas)")
+    total_perguntas = len(df_itens)
+    limite_respostas = total_perguntas / 2
 
-# Botão Finalizar com estado dinâmico (habilitado/desabilitado)
-if st.button("Finalizar e Enviar Respostas", type="primary", disabled=botao_desabilitado):
-        st.subheader("Enviando Respostas...")
+    # Determina se o botão deve ser desabilitado
+    botao_desabilitado = respostas_validas_contadas < limite_respostas
 
-        # --- LÓGICA DE CÁLCULO ---
-        respostas_list = []
-        for index, row in df_itens.iterrows():
-            item_id = row['Código']
-            resposta_usuario = st.session_state.respostas.get(item_id)
-            respostas_list.append({
-                "Código": item_id, "Dimensão": row["Dimensão"], "Subcategoria": row["Subcategoria"],
-                "Item": row["Item"], "Resposta": resposta_usuario, "Reverso": row["Reverso"]
-            })
-        dfr = pd.DataFrame(respostas_list)
+    # Exibe aviso se o botão estiver desabilitado
+    if botao_desabilitado:
+        st.warning(f"Responda 50% das perguntas (excluindo 'N/A') para habilitar o envio. ({respostas_validas_contadas}/{total_perguntas} válidas)")
 
-        with st.spinner("Enviando dados para a planilha..."):
-            try:
-                # 1. Preparar dados das respostas
-                timestamp_str = datetime.now().isoformat(timespec="seconds")
-                respostas_para_enviar = []
-                for _, row in dfr.iterrows():
-                    respostas_para_enviar.append([
-                        timestamp_str,
-                        respondente,
-                        data,
-                        org_coletora_valida,
-                        row["Dimensão"],
-                        row["Subcategoria"],
-                        row["Item"],
-                        row["Resposta"] if pd.notna(row["Resposta"]) else "N/A"
-                    ])
-                
-                ws_respostas.append_rows(respostas_para_enviar, value_input_option='USER_ENTERED')
-        
-                st.success("Suas respostas foram enviadas com sucesso!")
-                st.balloons()
-            except Exception as e:
-                st.error(f"Erro ao enviar dados para a planilha: {e}")
+    # Botão Finalizar com estado dinâmico (habilitado/desabilitado)
+    if st.button("Finalizar e Enviar Respostas", type="primary", disabled=botao_desabilitado):
+            st.subheader("Enviando Respostas...")
 
-                with st.container():
-                    st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
-                    if st.button("Ping Button", key="autoclick_button"):
-                    # A ação aqui pode ser um simples print no log do Streamlit
-                      print("Ping button clicked by automation.")
-                    st.markdown('</div>', unsafe_allow_html=True)
+            # --- LÓGICA DE CÁLCULO ---
+            respostas_list = []
+            for index, row in df_itens.iterrows():
+                item_id = row['Código']
+                resposta_usuario = st.session_state.respostas.get(item_id)
+                respostas_list.append({
+                    "Código": item_id, "Dimensão": row["Dimensão"], "Subcategoria": row["Subcategoria"],
+                    "Item": row["Item"], "Resposta": resposta_usuario, "Reverso": row["Reverso"]
+                })
+            dfr = pd.DataFrame(respostas_list)
+
+            with st.spinner("Enviando dados para a planilha..."):
+                try:
+                    # 1. Preparar dados das respostas
+                    timestamp_str = datetime.now().isoformat(timespec="seconds")
+                    respostas_para_enviar = []
+                    for _, row in dfr.iterrows():
+                        respostas_para_enviar.append([
+                            timestamp_str,
+                            respondente,
+                            data,
+                            org_coletora_valida,
+                            row["Dimensão"],
+                            row["Subcategoria"],
+                            row["Item"],
+                            row["Resposta"] if pd.notna(row["Resposta"]) else "N/A"
+                        ])
+
+                    ws_respostas.append_rows(respostas_para_enviar, value_input_option='USER_ENTERED')
+
+                    st.success("Suas respostas foram enviadas com sucesso!")
+                    st.balloons()
+                except Exception as e:
+                    st.error(f"Erro ao enviar dados para a planilha: {e}")
+
+with st.empty():
+    st.markdown('<div id="autoclick-div">', unsafe_allow_html=True)
+    if st.button("Ping Button", key="autoclick_button"):
+        print("Ping button clicked by automation.")
+    st.markdown('</div>', unsafe_allow_html=True)
